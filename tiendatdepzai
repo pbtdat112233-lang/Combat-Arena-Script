@@ -1,0 +1,169 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+local Settings = {
+    AimbotEnabled = false,
+    AimKey = Enum.UserInputType.MouseButton2,
+    SecondAimKey = Enum.UserInputType.MouseButton1,
+    FOV = 150,
+    Smoothness = 2,
+    TargetMagnet = false,
+    MagnetSmoothness = 0.25,
+    ESP_Master = false,
+    ESP_Box = false,
+    ESP_Name = false,
+    ESP_Line = false,
+    ESP_HealthBar = false,
+    LinePos = "Bottom",
+}
+
+local Objects = {} 
+local ESP_Buttons = {}
+local ScriptRunning = true
+local function IsEnemy(player)
+    if player.Team == LocalPlayer.Team and player.Team ~= nil then return false end
+    return true
+end
+
+local function IsVisible(part)
+    local params = RaycastParams.new()
+    params.FilterDescendantsInstances = {LocalPlayer.Character, part.Parent}
+    params.FilterType = Enum.RaycastFilterType.Blacklist
+    local result = workspace:Raycast(Camera.CFrame.Position, part.Position - Camera.CFrame.Position, params)
+    return result == nil
+end
+
+local function RoundElement(obj, radius)
+    local corner = Instance.new("UICorner", obj); corner.CornerRadius = UDim.new(0, radius or 8)
+end
+
+local function MakeDraggable(obj)
+    local dragging, dragInput, dragStart, startPos
+    obj.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; dragStart = input.Position; startPos = obj.Position
+            input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+        end
+    end)
+    obj.InputChanged:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end end)
+    RunService.RenderStepped:Connect(function() if dragging and dragInput then local delta = dragInput.Position - dragStart; obj.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y) end end)
+end
+
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui); table.insert(Objects, ScreenGui)
+local ToggleBtn = Instance.new("TextButton", ScreenGui); ToggleBtn.Size = UDim2.new(0, 100, 0, 45); ToggleBtn.Position = UDim2.new(0, 20, 0.5, 0); ToggleBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45); ToggleBtn.TextColor3 = Color3.new(1, 1, 1); ToggleBtn.Text = "Hide"; ToggleBtn.Font = Enum.Font.SourceSansBold; ToggleBtn.TextSize = 18; RoundElement(ToggleBtn, 10); MakeDraggable(ToggleBtn)
+
+local MainFrame = Instance.new("Frame", ScreenGui); MainFrame.Size = UDim2.new(0, 260, 0, 520); MainFrame.Position = UDim2.new(0.5, -130, 0.5, -260); MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15); MainFrame.Active = true; RoundElement(MainFrame, 12); MakeDraggable(MainFrame)
+
+ToggleBtn.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame.Visible; ToggleBtn.Text = MainFrame.Visible and "Hide" or "Open" end)
+
+local Header = Instance.new("Frame", MainFrame); Header.Size = UDim2.new(1, 0, 0, 55); Header.BackgroundColor3 = Color3.fromRGB(30, 30, 30); RoundElement(Header, 12)
+local Title = Instance.new("TextLabel", Header); Title.Size = UDim2.new(1, 0, 0, 25); Title.Position = UDim2.new(0, 0, 0, 8); Title.Text = "Combat Arena Menu"; Title.TextColor3 = Color3.new(1, 1, 1); Title.BackgroundTransparency = 1; Title.Font = Enum.Font.GothamBold; Title.TextSize = 16
+local DevInfo = Instance.new("TextLabel", Header); DevInfo.Size = UDim2.new(1, 0, 0, 15); DevInfo.Position = UDim2.new(0, 0, 0, 32); DevInfo.Text = "Dev DatDepZai"; DevInfo.TextColor3 = Color3.new(1, 1, 1); DevInfo.BackgroundTransparency = 1; DevInfo.Font = Enum.Font.GothamBold; DevInfo.TextSize = 13
+local CloseBtn = Instance.new("TextButton", MainFrame); CloseBtn.Size = UDim2.new(0, 22, 0, 22); CloseBtn.Position = UDim2.new(1, -28, 0, 6); CloseBtn.Text = "X"; CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0); CloseBtn.TextColor3 = Color3.new(1,1,1); RoundElement(CloseBtn, 5); CloseBtn.MouseButton1Click:Connect(function() ScriptRunning = false; for _, obj in pairs(Objects) do pcall(function() obj:Destroy() end) end end)
+
+local function CreateBtn(parent, name, pos, sizeY, color)
+    local btn = Instance.new("TextButton", parent); btn.Size = UDim2.new(0.9, 0, 0, sizeY); btn.Position = UDim2.new(0.05, 0, 0, pos); btn.BackgroundColor3 = color or Color3.fromRGB(40, 40, 40); btn.TextColor3 = Color3.new(1, 1, 1); btn.Text = name; btn.Font = Enum.Font.SourceSansBold; btn.TextSize = 15; RoundElement(btn, 8); return btn
+end
+
+local AimBtn = CreateBtn(MainFrame, "Aimbot : OFF", 70, 32)
+AimBtn.MouseButton1Click:Connect(function() Settings.AimbotEnabled = not Settings.AimbotEnabled; AimBtn.Text = "Aimbot : " .. (Settings.AimbotEnabled and "ON" or "OFF"); AimBtn.BackgroundColor3 = Settings.AimbotEnabled and Color3.fromRGB(0, 120, 0) or Color3.fromRGB(40, 40, 40) end)
+
+local FOVLabel = Instance.new("TextLabel", MainFrame); FOVLabel.Size = UDim2.new(1, 0, 0, 20); FOVLabel.Position = UDim2.new(0, 0, 0, 105); FOVLabel.Text = "FOV: 150"; FOVLabel.TextColor3 = Color3.new(1, 1, 1); FOVLabel.BackgroundTransparency = 1; FOVLabel.Font = Enum.Font.SourceSansBold; FOVLabel.TextSize = 16
+local FOVSlider = Instance.new("Frame", MainFrame); FOVSlider.Size = UDim2.new(0.8, 0, 0, 4); FOVSlider.Position = UDim2.new(0.1, 0, 0, 130); FOVSlider.BackgroundColor3 = Color3.fromRGB(50, 50, 50); RoundElement(FOVSlider, 2)
+local SliderBtn = Instance.new("TextButton", FOVSlider); SliderBtn.Size = UDim2.new(0, 12, 0, 12); SliderBtn.Position = UDim2.new(0.3, 0, -1, 0); SliderBtn.Text = ""; SliderBtn.BackgroundColor3 = Color3.new(1,1,1); RoundElement(SliderBtn, 10)
+SliderBtn.MouseButton1Down:Connect(function() local move; move = RunService.RenderStepped:Connect(function() local rel = math.clamp((UserInputService:GetMouseLocation().X - FOVSlider.AbsolutePosition.X) / FOVSlider.AbsoluteSize.X, 0, 1); Settings.FOV = math.floor(rel * 500); SliderBtn.Position = UDim2.new(rel, -6, -1, 0); FOVLabel.Text = "FOV: " .. Settings.FOV end); UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then move:Disconnect() end end) end)
+
+local MagnetBtn = CreateBtn(MainFrame, "Magnet: OFF", 155, 32)
+MagnetBtn.MouseButton1Click:Connect(function() Settings.TargetMagnet = not Settings.TargetMagnet; MagnetBtn.Text = "Magnet: " .. (Settings.TargetMagnet and "ON" or "OFF"); MagnetBtn.BackgroundColor3 = Settings.TargetMagnet and Color3.fromRGB(0, 120, 0) or Color3.fromRGB(40, 40, 40) end)
+
+local MasterBtn = CreateBtn(MainFrame, "ESP MASTER: OFF", 200, 32)
+MasterBtn.MouseButton1Click:Connect(function() Settings.ESP_Master = not Settings.ESP_Master; MasterBtn.Text = "ESP MASTER: " .. (Settings.ESP_Master and "ON" or "OFF"); MasterBtn.BackgroundColor3 = Settings.ESP_Master and Color3.fromRGB(0, 120, 0) or Color3.fromRGB(40, 40, 40); for _, b in pairs(ESP_Buttons) do b.Visible = Settings.ESP_Master end end)
+
+local function CreateChild(name, pos, key)
+    local btn = CreateBtn(MainFrame, name .. ": OFF", pos, 26, Color3.fromRGB(30,30,30)); btn.Visible = false; table.insert(ESP_Buttons, btn)
+    btn.MouseButton1Click:Connect(function() Settings[key] = not Settings[key]; btn.Text = name .. ": " .. (Settings[key] and "ON" or "OFF") end)
+end
+CreateChild("Esp Box", 240, "ESP_Box"); CreateChild("Esp Name", 270, "ESP_Name"); CreateChild("Esp Line", 300, "ESP_Line"); CreateChild("Esp Health", 330, "ESP_HealthBar")
+
+local LinePosBtn = CreateBtn(MainFrame, "Line Pos: Bottom", 360, 26, Color3.fromRGB(55,55,55))
+LinePosBtn.Visible = false; table.insert(ESP_Buttons, LinePosBtn)
+LinePosBtn.MouseButton1Click:Connect(function()
+    if Settings.LinePos == "Bottom" then Settings.LinePos = "Center" elseif Settings.LinePos == "Center" then Settings.LinePos = "Top" else Settings.LinePos = "Bottom" end
+    LinePosBtn.Text = "Line Pos: " .. Settings.LinePos
+end)
+
+local fov_circle = Drawing.new("Circle"); fov_circle.Thickness = 1; fov_circle.Visible = false; fov_circle.Color = Color3.new(1, 1, 1); table.insert(Objects, fov_circle)
+
+RunService.RenderStepped:Connect(function()
+    if not ScriptRunning then return end
+    fov_circle.Visible = Settings.AimbotEnabled; fov_circle.Radius = Settings.FOV; fov_circle.Position = UserInputService:GetMouseLocation()
+    
+    local isPressing = UserInputService:IsMouseButtonPressed(Settings.AimKey) or UserInputService:IsMouseButtonPressed(Settings.SecondAimKey)
+
+    if Settings.AimbotEnabled and isPressing then
+        local target = nil; local targetChar = nil; local dist = Settings.FOV
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("Head") and p.Character.Humanoid.Health > 0 and IsEnemy(p) then
+                local head = p.Character.Head
+                local pPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+                if onScreen then
+                    local mDist = (Vector2.new(pPos.X, pPos.Y) - UserInputService:GetMouseLocation()).Magnitude
+                    if mDist < dist then
+                        if IsVisible(head) then target = pPos; dist = mDist end
+                        targetChar = p.Character
+                    end
+                end
+            end
+        end
+
+        if target and mousemoverel then
+            local mP = UserInputService:GetMouseLocation()
+            mousemoverel((target.X - mP.X)/Settings.Smoothness, (target.Y - mP.Y)/Settings.Smoothness)
+        end
+        
+        if Settings.TargetMagnet and targetChar and targetChar:FindFirstChild("HumanoidRootPart") then
+            local root = targetChar.HumanoidRootPart
+            local targetPos = Camera.CFrame.Position + (Camera.CFrame.LookVector * (root.Position - Camera.CFrame.Position).Magnitude)
+            root.CFrame = root.CFrame:Lerp(CFrame.new(targetPos), Settings.MagnetSmoothness)
+        end
+    end
+end)
+
+local function CreateESP(p)
+    local Box = Drawing.new("Square"); local Name = Drawing.new("Text"); local Line = Drawing.new("Line"); local HB_O = Drawing.new("Square"); local HB = Drawing.new("Square")
+    table.insert(Objects, Box); table.insert(Objects, Name); table.insert(Objects, Line); table.insert(Objects, HB_O); table.insert(Objects, HB)
+    RunService.RenderStepped:Connect(function()
+        if not ScriptRunning or not Settings.ESP_Master then Box.Visible=false; Name.Visible=false; Line.Visible=false; HB.Visible=false; HB_O.Visible=false; return end
+        if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character.Humanoid.Health > 0 then
+            local Root = p.Character.HumanoidRootPart; local Pos, OnScreen = Camera:WorldToViewportPoint(Root.Position)
+            if OnScreen then
+                local isEnemy = IsEnemy(p)
+                local espColor = isEnemy and Color3.new(1,1,1) or Color3.new(0,1,0)
+                local Size = (Camera:WorldToViewportPoint(Root.Position - Vector3.new(0, 3, 0)).Y - Camera:WorldToViewportPoint(Root.Position + Vector3.new(0, 2.6, 0)).Y); local XSize = Size * 0.7
+                Box.Visible = Settings.ESP_Box; Box.Size = Vector2.new(XSize, Size); Box.Position = Vector2.new(Pos.X - XSize/2, Pos.Y - Size/2); Box.Color = espColor
+                
+                if isEnemy then
+                    Name.Visible = Settings.ESP_Name
+                    Name.Text = p.Name
+                else
+                    Name.Visible = false
+                end
+                
+                Name.Position = Vector2.new(Pos.X, Pos.Y - (Size/2) - 15); Name.Center = true; Name.Outline = true; Name.Color = espColor; Name.Size = 14
+                
+                if Settings.ESP_HealthBar then
+                    local HP = p.Character.Humanoid.Health / p.Character.Humanoid.MaxHealth
+                    HB_O.Visible = true; HB_O.Size = Vector2.new(4, Size); HB_O.Position = Vector2.new(Pos.X - (XSize/2) - 8, Pos.Y - Size/2); HB_O.Color = Color3.new(0,0,0); HB_O.Filled = true
+                    HB.Visible = true; HB.Size = Vector2.new(2, Size * HP); HB.Position = Vector2.new(Pos.X - (XSize/2) - 7, (Pos.Y + Size/2) - (Size * HP)); HB.Color = Color3.new(0,1,0); HB.Filled = true
+                else HB_O.Visible = false; HB.Visible = false end
+                Line.Visible = Settings.ESP_Line; Line.To = Vector2.new(Pos.X, Pos.Y + (Size/2)); Line.Color = espColor
+                if Settings.LinePos == "Top" then Line.From = Vector2.new(Camera.ViewportSize.X/2, 0) elseif Settings.LinePos == "Center" then Line.From = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2) else Line.From = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y) end
+            else Box.Visible=false; Name.Visible=false; Line.Visible=false; HB.Visible=false; HB_O.Visible=false end
+        else Box.Visible=false; Name.Visible=false; Line.Visible=false; HB.Visible=false; HB_O.Visible=false end
+    end)
+end
+for _, p in pairs(Players:GetPlayers()) do if p ~= LocalPlayer then CreateESP(p) end end
+Players.PlayerAdded:Connect(CreateESP)
